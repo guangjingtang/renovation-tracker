@@ -371,23 +371,23 @@ a{color:var(--blue);text-decoration:none}
 
 <!-- ==================== BASE UI FUNCTIONS (must work even without network) ==================== -->
 <script>
-// These functions are defined here (not in module) so they always work for onclick handlers
-function showPage(name) {
+// Core UI functions — global scope so onclick works
+window.showPage = function(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const el = document.getElementById('page-' + name);
+  var el = document.getElementById('page-' + name);
   if (el) el.classList.add('active');
   window.location.hash = name;
-}
-function openDialog(id) { document.getElementById(id).classList.add('open'); }
-function closeDialog(id) { document.getElementById(id).classList.remove('open'); }
-function getHashPage() { return (window.location.hash || '').replace('#',''); }
+};
+window.openDialog = function(id) { document.getElementById(id).classList.add('open'); };
+window.closeDialog = function(id) { document.getElementById(id).classList.remove('open'); };
+window.getHashPage = function() { return (window.location.hash || '').replace('#',''); };
 
-// Listen for hash changes
-window.addEventListener('hashchange', () => {
-  const page = getHashPage();
-  if (['login','register','reset-password'].includes(page)) { showPage(page); return; }
-  if (!window.__currentUser) { showPage('login'); return; }
-  showPage(page);
+// Route guard — redirect to login if not authenticated
+window.addEventListener('hashchange', function() {
+  var page = window.getHashPage();
+  if (['login','register','reset-password'].indexOf(page) !== -1) { window.showPage(page); return; }
+  if (!window.__currentUser) { window.showPage('login'); return; }
+  window.showPage(page);
 });
 </script>
 
