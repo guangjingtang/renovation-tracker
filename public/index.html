@@ -369,15 +369,41 @@ a{color:var(--blue);text-decoration:none}
   <div class="info" id="photo-info"></div>
 </div>
 
-<!-- ==================== SCRIPTS ==================== -->
+<!-- ==================== BASE UI FUNCTIONS (must work even without network) ==================== -->
+<script>
+// These functions are defined here (not in module) so they always work for onclick handlers
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const el = document.getElementById('page-' + name);
+  if (el) el.classList.add('active');
+  window.location.hash = name;
+}
+function openDialog(id) { document.getElementById(id).classList.add('open'); }
+function closeDialog(id) { document.getElementById(id).classList.remove('open'); }
+function getHashPage() { return (window.location.hash || '').replace('#',''); }
+
+// Listen for hash changes
+window.addEventListener('hashchange', () => {
+  const page = getHashPage();
+  if (['login','register','reset-password'].includes(page)) { showPage(page); return; }
+  if (!window.__currentUser) { showPage('login'); return; }
+  showPage(page);
+});
+</script>
+
+<!-- ==================== SUPABASE & BUSINESS LOGIC ==================== -->
 <script type="module">
-// ====== CONFIG — 修改为你的 Supabase 配置 ======
-const SUPABASE_URL = 'https://xxxxx.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJ...';
+// ====== CONFIG ======
+const SUPABASE_URL = 'https://vfvcoajiwguyenzqgkqb.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_iVfLmsTi7hzPYUt-kZo5DQ_5YQeNK5c';
 
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabase;
+try {
+  const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+  supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch (e) {
+  console.error('Supabase SDK 加载失败:', e.message);
+}
 
 // ====== GLOBAL STATE ======
 let currentUser = null;
@@ -390,31 +416,12 @@ let logImages = []; // temp storage for log editor
 let editingLogId = null;
 let confirmCallback = null;
 
+// Sync currentUser to window for the non-module hashchange listener
+Object.defineProperty(window, '__currentUser', { get: () => currentUser });
+
 // ====== PHASES ======
 const PHASES = ['拆旧','水电','泥木','油漆','安装','软装','验收'];
 const PHASE_COLORS = ['#6B7280','#3B82F6','#8B5CF6','#F59E0B','#EC4899','#10B981','#EF4444'];
-
-// ====== ROUTING ======
-function showPage(name) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const el = document.getElementById('page-' + name);
-  if (el) el.classList.add('active');
-  window.location.hash = name;
-}
-
-function getHashPage() {
-  const h = window.location.hash.replace('#','');
-  return h || 'login';
-}
-
-window.addEventListener('hashchange', () => {
-  const page = getHashPage();
-  if (['login','register','reset-password'].includes(page)) { showPage(page); return; }
-  if (!currentUser) { showPage('login'); return; }
-  showPage(page);
-  if (page === 'dashboard') loadDashboard();
-  if (page.startsWith('project-')) loadProject(page.replace('project-',''));
-});
 
 // ====== TOAST ======
 function toast(msg, type='success') {
@@ -426,14 +433,6 @@ function toast(msg, type='success') {
 }
 
 // ====== DIALOGS ======
-function openDialog(id) { document.getElementById(id).classList.add('open'); }
-function closeDialog(id) { document.getElementById(id).classList.remove('open'); }
-
-// Expose to global scope for inline onclick handlers (module scripts are scoped)
-window.showPage = showPage;
-window.openDialog = openDialog;
-window.closeDialog = closeDialog;
-
 function openConfirm(msg, cb) {
   document.getElementById('confirm-msg').textContent = msg;
   confirmCallback = cb;
@@ -1229,8 +1228,16 @@ async function init() {
   setupAuthUI();
   renderPhaseChips();
 
-  // Check existing session
-  const user = await checkSession();
+  let user = null;
+  if (supabase) {
+    try {
+      user = await checkSession();
+    } catch (e) {
+      console.warn('会话检查失败:', e.message);
+    }
+  } else {
+    console.warn('Supabase 未连接，无法登录');
+  }
 
   const hash = getHashPage();
   if (user) {
