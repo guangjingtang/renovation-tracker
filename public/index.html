@@ -214,6 +214,7 @@ a{color:var(--blue);text-decoration:none}
         <div class="form-group"><label class="label">密码</label><input id="login-password" type="password" class="input" placeholder="输入密码"></div>
         <p id="login-error" class="form-error"></p>
         <button id="btn-login" class="btn btn-primary" style="width:100%;margin-top:8px">登 录</button>
+        <p style="text-align:right;margin-top:10px;font-size:13px"><a href="#" onclick="openDialog('dlg-reset')">忘记密码？</a></p>
       </div>
       <div id="form-magic" style="display:none">
         <div class="form-group"><label class="label">邮箱</label><input id="magic-email" type="email" class="input" placeholder="your@email.com"></div>
@@ -329,6 +330,36 @@ a{color:var(--blue);text-decoration:none}
   </div>
 </div>
 
+<!-- Forgot Password Dialog -->
+<div id="dlg-reset" class="dialog-overlay">
+  <div class="dialog" style="max-width:400px">
+    <div class="dialog-header"><h3>找回密码</h3><button class="btn-icon" onclick="closeDialog('dlg-reset')">✕</button></div>
+    <div class="dialog-body">
+      <p style="font-size:14px;color:var(--text2);margin-bottom:16px">输入注册时使用的邮箱，我们会发送密码重置链接。</p>
+      <div class="form-group"><label class="label">邮箱</label><input id="reset-email" type="email" class="input" placeholder="your@email.com"></div>
+      <p id="reset-msg" style="font-size:13px;display:none"></p>
+    </div>
+    <div class="dialog-footer"><button class="btn btn-outline" onclick="closeDialog('dlg-reset')">取消</button><button id="btn-reset" class="btn btn-primary">发送重置链接</button></div>
+  </div>
+</div>
+
+<!-- Reset Password Page (callback from email link) -->
+<div id="page-reset-password" class="page">
+  <div class="auth-container">
+    <div class="auth-card card">
+      <h1>设置新密码</h1>
+      <p class="subtitle" id="reset-subtitle">请输入你的新密码</p>
+      <div class="form-group"><label class="label">新密码（至少 8 位）</label><input id="new-password" type="password" class="input" placeholder="至少 8 位"></div>
+      <div class="form-group"><label class="label">确认新密码</label><input id="new-password-confirm" type="password" class="input" placeholder="再次输入新密码"></div>
+      <p id="reset-pw-error" class="form-error"></p>
+      <button id="btn-reset-password" class="btn btn-primary" style="width:100%">重置密码</button>
+      <p style="text-align:center;margin-top:20px;font-size:14px;color:var(--text2)">
+        <a href="#" onclick="showPage('login')">返回登录</a>
+      </p>
+    </div>
+  </div>
+</div>
+
 <!-- Photo Viewer -->
 <div id="photo-viewer" class="photo-viewer">
   <button class="close-btn" onclick="closePhotoViewer()">✕</button>
@@ -378,7 +409,7 @@ function getHashPage() {
 
 window.addEventListener('hashchange', () => {
   const page = getHashPage();
-  if (['login','register'].includes(page)) { showPage(page); return; }
+  if (['login','register','reset-password'].includes(page)) { showPage(page); return; }
   if (!currentUser) { showPage('login'); return; }
   showPage(page);
   if (page === 'dashboard') loadDashboard();
@@ -550,6 +581,45 @@ function setupAuthUI() {
     showPage('dashboard'); loadDashboard();
     toast('注册成功！欢迎使用 SiteSync');
   });
+
+  // Forgot Password
+  document.getElementById('btn-reset').addEventListener('click', async () => {
+    const email = document.getElementById('reset-email').value.trim();
+    const msg = document.getElementById('reset-msg');
+    if (!email) { msg.textContent = '请输入邮箱'; msg.style.color = 'var(--red)'; msg.style.display = 'block'; return; }
+    const btn = document.getElementById('btn-reset');
+    btn.disabled = true; btn.textContent = '发送中...';
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname + '#reset-password'
+    });
+    if (error) { msg.textContent = error.message; msg.style.color = 'var(--red)'; msg.style.display = 'block'; btn.disabled = false; btn.textContent = '发送重置链接'; return; }
+    msg.textContent = '✅ 已发送密码重置链接，请检查邮箱';
+    msg.style.color = 'var(--green)'; msg.style.display = 'block';
+    btn.textContent = '已发送';
+  });
+  document.getElementById('reset-email').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('btn-reset').click(); });
+
+  // Reset Password (callback from email link)
+  document.getElementById('btn-reset-password').addEventListener('click', async () => {
+    const pw = document.getElementById('new-password').value;
+    const pw2 = document.getElementById('new-password-confirm').value;
+    const errEl = document.getElementById('reset-pw-error');
+    errEl.textContent = '';
+    if (!pw || !pw2) { errEl.textContent = '请填写新密码'; return; }
+    if (pw.length < 8) { errEl.textContent = '密码至少 8 位'; return; }
+    if (pw !== pw2) { errEl.textContent = '两次密码输入不一致'; return; }
+    const btn = document.getElementById('btn-reset-password');
+    btn.disabled = true; btn.textContent = '重置中...';
+    const { error } = await supabase.auth.updateUser({ password: pw });
+    if (error) { errEl.textContent = error.message; btn.disabled = false; btn.textContent = '重置密码'; return; }
+    toast('密码重置成功！请用新密码登录');
+    btn.disabled = false; btn.textContent = '重置密码';
+    // Clear form
+    document.getElementById('new-password').value = '';
+    document.getElementById('new-password-confirm').value = '';
+    showPage('login');
+  });
+  document.getElementById('new-password-confirm').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('btn-reset-password').click(); });
 
   // Enter key submit
   document.getElementById('login-password').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('btn-login').click(); });
@@ -1160,7 +1230,7 @@ async function init() {
   const hash = getHashPage();
   if (user) {
     renderHeader();
-    if (['login','register',''].includes(hash)) {
+    if (['login','register','reset-password',''].includes(hash)) {
       showPage('dashboard');
       loadDashboard();
     } else {
@@ -1169,7 +1239,7 @@ async function init() {
       if (hash.startsWith('project-')) loadProject(hash.replace('project-',''));
     }
   } else {
-    if (!['login','register'].includes(hash)) showPage('login');
+    if (!['login','register','reset-password'].includes(hash)) showPage('login');
     else showPage(hash);
   }
 }
