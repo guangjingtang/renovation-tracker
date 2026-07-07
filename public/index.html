@@ -551,6 +551,7 @@ function setupAuthUI() {
 
   // Register
   document.getElementById('btn-register').addEventListener('click', async () => {
+    if (!supabase) { toast('Supabase 未连接，请刷新页面重试', 'error'); return; }
     const studioName = document.getElementById('reg-studio').value.trim();
     const email = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
