@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SiteSync — 装修进度追踪</title>
+<style>
+/* ====== CSS Reset & Variables ====== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --brand:#1A1A1A;--bg:#F5F5F5;--surface:#FFF;--text:#1A1A1A;
+  --text2:#6B7280;--border:#E5E7EB;--green:#10B981;--yellow:#F59E0B;
+  --red:#EF4444;--blue:#3B82F6;--radius:10px;--shadow:0 2px 8px rgba(0,0,0,.06);
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+a{color:var(--blue);text-decoration:none}
+
+/* ====== Common Components ====== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition:all .15s;font-family:var(--font)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--brand);color:#FFF}
+.btn-primary:hover:not(:disabled){opacity:.85}
+.btn-outline{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.btn-outline:hover{background:var(--bg)}
+.btn-danger{background:var(--red);color:#FFF}
+.btn-sm{padding:6px 12px;font-size:13px;border-radius:6px}
+.btn-icon{padding:8px;border-radius:8px;background:none;border:none;cursor:pointer;color:var(--text2)}
+.btn-icon:hover{background:var(--bg);color:var(--text)}
+.input,.textarea{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:var(--font);transition:border .15s;background:var(--surface);color:var(--text)}
+.input:focus,.textarea:focus{outline:none;border-color:var(--brand)}
+.textarea{resize:vertical;min-height:80px}
+.label{display:block;font-size:13px;font-weight:500;margin-bottom:4px;color:var(--text)}
+.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:500}
+.badge-active{background:#D1FAE5;color:#065F46}
+.badge-completed{background:#DBEAFE;color:#1E40AF}
+.badge-archived{background:#F3F4F6;color:#6B7280}
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.toast{position:fixed;top:20px;right:20px;z-index:9999;padding:12px 20px;border-radius:8px;color:#FFF;font-size:14px;animation:slideIn .3s ease;max-width:360px}
+.toast-success{background:var(--green)}
+.toast-error{background:var(--red)}
+@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes shimmer{0%{background-position:-200px 0}100%{background-position:200px 0}}
+.skeleton{background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);background-size:200px 100%;animation:shimmer 1.5s infinite;border-radius:var(--radius)}
+.page{display:none;max-width:960px;margin:0 auto;padding:20px;animation:fadeIn .2s ease}
+.page.active{display:block}
+
+/* ====== Auth Pages ====== */
+.auth-container{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.auth-card{width:100%;max-width:400px;padding:40px 32px}
+.auth-card h1{font-size:24px;text-align:center;margin-bottom:8px}
+.auth-card .subtitle{text-align:center;color:var(--text2);font-size:14px;margin-bottom:28px}
+.form-group{margin-bottom:16px}
+.form-error{color:var(--red);font-size:13px;margin-top:4px}
+
+/* ====== Header & Nav ====== */
+.app-header{position:sticky;top:0;z-index:100;background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.app-header .logo{font-size:18px;font-weight:700}
+.header-actions{display:flex;align-items:center;gap:8px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--brand);color:#FFF;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;cursor:pointer}
+
+/* ====== Mobile Bottom Nav ====== */
+.mobile-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:100;padding:4px 0 env(safe-area-inset-bottom)}
+.mobile-nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px;background:none;border:none;color:var(--text2);font-size:10px;cursor:pointer;font-family:var(--font)}
+.mobile-nav button.active{color:var(--brand)}
+.mobile-nav button svg{width:22px;height:22px}
+
+/* ====== Dashboard ====== */
+.dash-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.dash-header h2{margin:0;font-size:22px}
+.project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.proj-card{cursor:pointer;transition:transform .15s,box-shadow .15s}
+.proj-card:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.proj-cover{width:100%;height:160px;object-fit:cover;background:linear-gradient(135deg,var(--brand),#555)}
+.proj-body{padding:14px 16px}
+.proj-name{font-size:16px;font-weight:600;margin-bottom:4px}
+.proj-addr{font-size:13px;color:var(--text2);margin-bottom:8px}
+.proj-meta{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text2)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--text2)}
+.empty-state svg{width:80px;height:80px;margin-bottom:16px;opacity:.4}
+.empty-state h3{font-size:18px;margin-bottom:8px;color:var(--text)}
+.empty-state p{margin-bottom:20px}
+
+/* ====== Project Timeline ====== */
+.proj-header{position:sticky;top:56px;z-index:50;background:var(--bg);padding:16px 20px;margin:-20px -20px 20px;border-bottom:1px solid var(--border)}
+.proj-header .back-row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.proj-header h3{font-size:20px}
+.phase-bar{display:flex;align-items:center;gap:0;overflow-x:auto;padding:8px 0;-webkit-overflow-scrolling:touch}
+.phase-bar::-webkit-scrollbar{display:none}
+.phase-dot{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:52px;position:relative;font-size:11px}
+.phase-dot .circle{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);background:var(--surface);flex-shrink:0;transition:all .3s}
+.phase-dot.done .circle{background:var(--brand);border-color:var(--brand)}
+.phase-dot.current .circle{width:20px;height:20px;background:var(--brand);border-color:var(--brand);box-shadow:0 0 0 4px rgba(0,0,0,.1)}
+.phase-dot .line{position:absolute;top:8px;left:50%;width:100%;height:2px;background:var(--border);z-index:-1}
+.phase-dot.done .line{background:var(--brand)}
+.fab{position:fixed;bottom:80px;right:20px;z-index:90;width:56px;height:56px;border-radius:50%;background:var(--brand);color:#FFF;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;transition:transform .15s}
+.fab:hover{transform:scale(1.05)}
+.fab svg{width:24px;height:24px}
+
+/* ====== Timeline / Log Cards ====== */
+.timeline{display:flex;flex-direction:column;gap:16px;margin-bottom:80px}
+.log-card{overflow:visible}
+.log-date-row{display:flex;align-items:center;gap:10px;padding:14px 16px 0}
+.log-date{font-size:15px;font-weight:600}
+.log-phase-chip{font-size:12px;padding:2px 10px;border-radius:12px;background:var(--bg);color:var(--text2)}
+.log-images{display:grid;gap:4px;padding:12px 16px 0}
+.log-images img{width:100%;height:100%;object-fit:cover;cursor:pointer;border-radius:6px;background:var(--bg)}
+.log-content{padding:10px 16px;font-size:14px;line-height:1.6;white-space:pre-wrap}
+.log-footer{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 14px;font-size:12px;color:var(--text2)}
+.log-author{display:flex;align-items:center;gap:6px}
+.log-actions{display:flex;align-items:center;gap:12px}
+.log-actions button{font-size:12px}
+
+/* ====== Comments ====== */
+.comments-section{padding:0 16px 16px;border-top:1px solid var(--border);display:none}
+.comments-section.open{display:block}
+.comment-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6}
+.comment-item:last-child{border:none}
+.comment-item.designer{border-left:3px solid var(--brand);padding-left:13px}
+.comment-avatar{width:28px;height:28px;border-radius:50%;background:var(--brand);color:#FFF;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.comment-body{flex:1;min-width:0}
+.comment-author{font-size:13px;font-weight:600;margin-bottom:2px}
+.comment-time{font-size:11px;color:var(--text2);margin-left:6px}
+.comment-text{font-size:14px;line-height:1.5}
+.comment-input-row{display:flex;gap:8px;padding:12px 0 4px}
+.comment-input-row input{flex:1}
+
+/* ====== Dialog / Sheet ====== */
+.dialog-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;padding:20px;animation:fadeIn .15s ease}
+.dialog-overlay.open{display:flex}
+.dialog{background:var(--surface);border-radius:var(--radius);width:100%;max-width:480px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+.dialog-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:5}
+.dialog-header h3{font-size:16px}
+.dialog-body{padding:20px}
+.dialog-footer{display:flex;justify-content:flex-end;gap:8px;padding:16px 20px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--surface);z-index:5}
+
+/* Sheet (mobile bottom) */
+.sheet{position:fixed;inset:0;z-index:200;display:none;flex-direction:column;justify-content:flex-end}
+.sheet.open{display:flex}
+.sheet-overlay{position:absolute;inset:0;background:rgba(0,0,0,.4)}
+.sheet-content{position:relative;background:var(--surface);border-radius:16px 16px 0 0;max-height:90vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom);animation:slideUp .3s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sheet-handle{width:36px;height:4px;border-radius:2px;background:var(--border);margin:12px auto}
+
+/* ====== Image Uploader ====== */
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:32px;text-align:center;cursor:pointer;transition:border .15s;color:var(--text2)}
+.upload-zone:hover{border-color:var(--brand)}
+.upload-zone input{display:none}
+.img-preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-top:12px}
+.img-preview-item{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg)}
+.img-preview-item img{width:100%;height:100%;object-fit:cover}
+.img-preview-item .remove-btn{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.6);color:#FFF;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px}
+.img-upload-progress{position:absolute;inset:0;background:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600}
+
+/* ====== Photo Viewer ====== */
+.photo-viewer{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.92);display:none;flex-direction:column;align-items:center;justify-content:center}
+.photo-viewer.open{display:flex}
+.photo-viewer img{max-width:95vw;max-height:80vh;object-fit:contain}
+.photo-viewer .close-btn{position:absolute;top:20px;right:20px;color:#FFF;background:none;border:none;font-size:32px;cursor:pointer;z-index:1}
+.photo-viewer .nav-btn{position:absolute;top:50%;transform:translateY(-50%);color:#FFF;background:rgba(255,255,255,.15);border:none;width:48px;height:48px;border-radius:50%;font-size:24px;cursor:pointer}
+.photo-viewer .nav-btn.prev{left:12px}
+.photo-viewer .nav-btn.next{right:12px}
+.photo-viewer .info{position:absolute;bottom:24px;color:#FFF;font-size:13px;text-align:center}
+
+/* ====== Notification Bell ====== */
+.notif-btn{position:relative;background:none;border:none;cursor:pointer;color:var(--text2);padding:6px;border-radius:8px}
+.notif-btn:hover{background:var(--bg)}
+.notif-badge{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#FFF;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:600}
+.notif-dropdown{position:absolute;top:100%;right:0;width:320px;max-height:400px;background:var(--surface);border-radius:var(--radius);box-shadow:0 10px 40px rgba(0,0,0,.12);overflow-y:auto;display:none;z-index:150}
+.notif-dropdown.open{display:block}
+.notif-item{padding:12px 16px;border-bottom:1px solid #f3f4f6;cursor:pointer;font-size:13px;transition:background .1s}
+.notif-item:hover{background:var(--bg)}
+.notif-item.unread{background:#F0F7FF}
+.notif-item .notif-title{font-weight:500;margin-bottom:2px}
+.notif-item .notif-time{font-size:11px;color:var(--text2)}
+
+/* ====== Dropdown Menu ====== */
+.dropdown{position:relative}
+.dropdown-menu{position:absolute;top:100%;right:0;background:var(--surface);border-radius:var(--radius);box-shadow:0 10px 40px rgba(0,0,0,.12);min-width:160px;display:none;z-index:150;overflow:hidden}
+.dropdown-menu.open{display:block}
+.dropdown-menu button{display:block;width:100%;padding:10px 16px;text-align:left;background:none;border:none;font-size:14px;cursor:pointer;font-family:var(--font);color:var(--text)}
+.dropdown-menu button:hover{background:var(--bg)}
+
+/* ====== Responsive ====== */
+@media(min-width:768px){
+  .page{padding:24px 32px}
+  .mobile-nav{display:none}
+  .proj-header{margin:-24px -32px 24px}
+  .fab{bottom:40px}
+  .project-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+}
+@media(max-width:767px){
+  .app-header .logo{font-size:16px}
+  .page{padding:16px;padding-bottom:80px}
+  .dialog{max-width:100%;margin:0;border-radius:16px 16px 0 0;align-self:flex-end;max-height:90vh}
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== AUTH PAGES ==================== -->
+<div id="page-login" class="page active">
+  <div class="auth-container">
+    <div class="auth-card card">
+      <h1>SiteSync</h1>
+      <p class="subtitle">装修进度追踪平台</p>
+      <div style="display:flex;gap:0;margin-bottom:20px;background:var(--bg);border-radius:8px;padding:3px">
+        <button id="tab-password" class="btn" style="flex:1;background:var(--surface);border-radius:6px;">密码登录</button>
+        <button id="tab-magic" class="btn" style="flex:1;background:transparent;color:var(--text2)">Magic Link</button>
+      </div>
+      <div id="form-password">
+        <div class="form-group"><label class="label">邮箱</label><input id="login-email" type="email" class="input" placeholder="your@email.com"></div>
+        <div class="form-group"><label class="label">密码</label><input id="login-password" type="password" class="input" placeholder="输入密码"></div>
+        <p id="login-error" class="form-error"></p>
+        <button id="btn-login" class="btn btn-primary" style="width:100%;margin-top:8px">登 录</button>
+      </div>
+      <div id="form-magic" style="display:none">
+        <div class="form-group"><label class="label">邮箱</label><input id="magic-email" type="email" class="input" placeholder="your@email.com"></div>
+        <p id="magic-msg" style="font-size:13px;color:var(--green);display:none"></p>
+        <button id="btn-magic" class="btn btn-primary" style="width:100%">发送 Magic Link</button>
+      </div>
+      <p style="text-align:center;margin-top:20px;font-size:14px;color:var(--text2)">
+        还没有账号？<a href="#" onclick="showPage('register')">注册设计师账号</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<div id="page-register" class="page">
+  <div class="auth-container">
+    <div class="auth-card card">
+      <h1>注册工作室</h1>
+      <p class="subtitle">创建你的装修协作空间</p>
+      <div class="form-group"><label class="label">工作室名称</label><input id="reg-studio" class="input" placeholder="例如：初舍设计工作室"></div>
+      <div class="form-group"><label class="label">邮箱</label><input id="reg-email" type="email" class="input" placeholder="your@email.com"></div>
+      <div class="form-group"><label class="label">密码（至少 8 位）</label><input id="reg-password" type="password" class="input" placeholder="至少 8 位"></div>
+      <p id="reg-error" class="form-error"></p>
+      <button id="btn-register" class="btn btn-primary" style="width:100%">注 册</button>
+      <p style="text-align:center;margin-top:20px;font-size:14px;color:var(--text2)">
+        已有账号？<a href="#" onclick="showPage('login')">返回登录</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== DASHBOARD ==================== -->
+<div id="page-dashboard" class="page">
+  <div class="dash-header">
+    <h2>我的项目</h2>
+    <button id="btn-create-project" class="btn btn-primary" style="display:none">+ 创建项目</button>
+  </div>
+  <div id="project-grid" class="project-grid"></div>
+  <div id="dashboard-empty" class="empty-state" style="display:none">
+    <svg viewBox="0 0 80 80" fill="none"><rect x="10" y="20" width="60" height="50" rx="6" stroke="currentColor" stroke-width="3"/><line x1="20" y1="32" x2="60" y2="32" stroke="currentColor" stroke-width="2.5"/><line x1="20" y1="44" x2="50" y2="44" stroke="currentColor" stroke-width="2.5"/><line x1="20" y1="56" x2="40" y2="56" stroke="currentColor" stroke-width="2.5"/></svg>
+    <h3>还没有项目</h3>
+    <p>创建第一个装修项目，开始追踪施工进度</p>
+    <button class="btn btn-primary" onclick="openCreateProject()">+ 创建项目</button>
+  </div>
+</div>
+
+<!-- ==================== PROJECT TIMELINE ==================== -->
+<div id="page-project" class="page">
+  <div class="proj-header" id="proj-header"></div>
+  <div id="phase-bar" class="phase-bar"></div>
+  <div id="timeline" class="timeline"></div>
+  <div id="timeline-empty" class="empty-state" style="display:none">
+    <svg viewBox="0 0 80 80" fill="none"><circle cx="40" cy="40" r="30" stroke="currentColor" stroke-width="3"/><path d="M40 20v20l15 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+    <h3>施工尚未开始</h3><p>点击右下角按钮发布第一条施工日志</p>
+  </div>
+  <button id="fab-log" class="fab" style="display:none" title="发布日志">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+  <div id="month-nav" style="position:fixed;right:8px;top:50%;transform:translateY(-50%);z-index:50;display:none;flex-direction:column;gap:4px"></div>
+</div>
+
+<!-- ==================== DIALOGS ==================== -->
+<!-- Create Project Dialog -->
+<div id="dlg-project" class="dialog-overlay">
+  <div class="dialog">
+    <div class="dialog-header"><h3>创建项目</h3><button class="btn-icon" onclick="closeDialog('dlg-project')">✕</button></div>
+    <div class="dialog-body">
+      <div class="form-group"><label class="label">项目名称 *</label><input id="proj-name" class="input" placeholder="例如：张先生雅居"></div>
+      <div class="form-group"><label class="label">地址 *</label><input id="proj-addr" class="input" placeholder="例如：上海市浦东新区XX路XX号"></div>
+      <div class="form-group"><label class="label">面积 (㎡)</label><input id="proj-area" type="number" class="input" placeholder="120"></div>
+      <div class="form-group"><label class="label">风格</label><input id="proj-style" class="input" placeholder="例如：现代简约"></div>
+      <div class="form-group"><label class="label">开工日期</label><input id="proj-start" type="date" class="input"></div>
+      <div class="form-group"><label class="label">封面图</label>
+        <div id="cover-upload-zone" class="upload-zone" style="padding:20px">📷 点击上传封面图</div>
+        <input type="file" id="cover-input" accept="image/*" style="display:none">
+        <div id="cover-preview" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="dialog-footer"><button class="btn btn-outline" onclick="closeDialog('dlg-project')">取消</button><button id="btn-submit-project" class="btn btn-primary">创建</button></div>
+  </div>
+</div>
+
+<!-- Log Editor Dialog (desktop) / Sheet (mobile) -->
+<div id="dlg-log" class="dialog-overlay">
+  <div class="dialog" id="dlg-log-content">
+    <div class="dialog-header"><h3 id="dlg-log-title">发布施工日志</h3><button class="btn-icon" onclick="closeDialog('dlg-log')">✕</button></div>
+    <div class="dialog-body">
+      <div class="form-group"><label class="label">施工阶段 *</label>
+        <div id="phase-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+      <div class="form-group"><label class="label">照片</label>
+        <div id="log-upload-zone" class="upload-zone">📷 点击或拖拽上传照片（可多选）</div>
+        <input type="file" id="log-img-input" accept="image/*" multiple style="display:none">
+        <div id="log-img-preview" class="img-preview-grid"></div>
+      </div>
+      <div class="form-group"><label class="label">文字记录（可选）</label>
+        <textarea id="log-content" class="textarea" placeholder="记录今天的施工内容..." rows="4"></textarea>
+      </div>
+    </div>
+    <div class="dialog-footer"><button class="btn btn-outline" onclick="closeDialog('dlg-log')">取消</button><button id="btn-submit-log" class="btn btn-primary">发布</button></div>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div id="dlg-confirm" class="dialog-overlay">
+  <div class="dialog" style="max-width:360px">
+    <div class="dialog-body" style="text-align:center;padding:32px">
+      <p id="confirm-msg" style="font-size:15px;margin-bottom:20px"></p>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button class="btn btn-outline" onclick="closeDialog('dlg-confirm')">取消</button>
+        <button id="btn-confirm-ok" class="btn btn-danger">确认</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Photo Viewer -->
+<div id="photo-viewer" class="photo-viewer">
+  <button class="close-btn" onclick="closePhotoViewer()">✕</button>
+  <button class="nav-btn prev" onclick="photoPrev()">‹</button>
+  <img id="photo-img" src="" alt="">
+  <button class="nav-btn next" onclick="photoNext()">›</button>
+  <div class="info" id="photo-info"></div>
+</div>
+
+<!-- ==================== SCRIPTS ==================== -->
+<script type="module">
+// ====== CONFIG — 修改为你的 Supabase 配置 ======
+const SUPABASE_URL = 'https://xxxxx.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJ...';
+
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ====== GLOBAL STATE ======
+let currentUser = null;
+let currentProfile = null;
+let currentStudio = null;
+let currentProject = null;
+let photoImages = [];
+let photoIndex = 0;
+let logImages = []; // temp storage for log editor
+let editingLogId = null;
+let confirmCallback = null;
+
+// ====== PHASES ======
+const PHASES = ['拆旧','水电','泥木','油漆','安装','软装','验收'];
+const PHASE_COLORS = ['#6B7280','#3B82F6','#8B5CF6','#F59E0B','#EC4899','#10B981','#EF4444'];
+
+// ====== ROUTING ======
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const el = document.getElementById('page-' + name);
+  if (el) el.classList.add('active');
+  window.location.hash = name;
+}
+
+function getHashPage() {
+  const h = window.location.hash.replace('#','');
+  return h || 'login';
+}
+
+window.addEventListener('hashchange', () => {
+  const page = getHashPage();
+  if (['login','register'].includes(page)) { showPage(page); return; }
+  if (!currentUser) { showPage('login'); return; }
+  showPage(page);
+  if (page === 'dashboard') loadDashboard();
+  if (page.startsWith('project-')) loadProject(page.replace('project-',''));
+});
+
+// ====== TOAST ======
+function toast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ====== DIALOGS ======
+function openDialog(id) { document.getElementById(id).classList.add('open'); }
+function closeDialog(id) { document.getElementById(id).classList.remove('open'); }
+
+function openConfirm(msg, cb) {
+  document.getElementById('confirm-msg').textContent = msg;
+  confirmCallback = cb;
+  openDialog('dlg-confirm');
+}
+document.getElementById('btn-confirm-ok').addEventListener('click', () => {
+  closeDialog('dlg-confirm');
+  if (confirmCallback) { confirmCallback(); confirmCallback = null; }
+});
+
+// ====== COMPRESS IMAGE ======
+function compressImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 1920;
+      let w = img.width, h = img.height;
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        resolve({ blob, width: w, height: h });
+      }, 'image/jpeg', 0.85);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ====== UPLOAD IMAGE ======
+async function uploadImage(file, bucket) {
+  const { blob, width, height } = await compressImage(file);
+  const name = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+  const path = bucket === 'log-images' ? `${currentProject?.id || 'misc'}/${name}` : name;
+  const { data, error } = await supabase.storage.from(bucket).upload(path, blob, {
+    contentType: 'image/jpeg', upsert: true
+  });
+  if (error) throw error;
+  const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(data.path);
+  return { url: publicUrl, width, height };
+}
+
+// ====== FORMAT HELPERS ======
+function formatDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  return `${dt.getFullYear()}年${dt.getMonth()+1}月${dt.getDate()}日`;
+}
+function timeAgo(d) {
+  const diff = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(diff/60000);
+  if (mins < 1) return '刚刚';
+  if (mins < 60) return `${mins}分钟前`;
+  const hrs = Math.floor(mins/60);
+  if (hrs < 24) return `${hrs}小时前`;
+  return `${Math.floor(hrs/24)}天前`;
+}
+function getInitial(name) { return (name || '?')[0]; }
+
+// ====== AUTH ======
+async function checkSession() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+  currentUser = session.user;
+
+  // Get profile
+  const { data: profile } = await supabase.from('profiles').select('*, studio:studios(*)').eq('id', currentUser.id).single();
+  if (profile) {
+    currentProfile = profile;
+    currentStudio = profile.studio;
+  }
+  return currentUser;
+}
+
+function setupAuthUI() {
+  // Tab switch
+  document.getElementById('tab-password').addEventListener('click', function() {
+    document.getElementById('form-password').style.display = 'block';
+    document.getElementById('form-magic').style.display = 'none';
+    this.style.background = 'var(--surface)'; this.style.color = '';
+    document.getElementById('tab-magic').style.background = 'transparent'; document.getElementById('tab-magic').style.color = 'var(--text2)';
+  });
+  document.getElementById('tab-magic').addEventListener('click', function() {
+    document.getElementById('form-password').style.display = 'none';
+    document.getElementById('form-magic').style.display = 'block';
+    this.style.background = 'var(--surface)'; this.style.color = '';
+    document.getElementById('tab-password').style.background = 'transparent'; document.getElementById('tab-password').style.color = 'var(--text2)';
+  });
+
+  // Login
+  document.getElementById('btn-login').addEventListener('click', async () => {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = '';
+    if (!email || !password) { errEl.textContent = '请填写邮箱和密码'; return; }
+    const btn = document.getElementById('btn-login');
+    btn.disabled = true; btn.textContent = '登录中...';
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) { errEl.textContent = error.message; btn.disabled = false; btn.textContent = '登 录'; return; }
+    await checkSession();
+    btn.disabled = false; btn.textContent = '登 录';
+    showPage('dashboard'); loadDashboard();
+  });
+
+  // Magic Link
+  document.getElementById('btn-magic').addEventListener('click', async () => {
+    const email = document.getElementById('magic-email').value.trim();
+    const msg = document.getElementById('magic-msg');
+    if (!email) { msg.textContent = '请输入邮箱'; msg.style.display = 'block'; return; }
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    if (error) { msg.textContent = error.message; msg.style.color = 'var(--red)'; msg.style.display = 'block'; return; }
+    msg.textContent = '✅ 已发送登录链接，请检查邮箱';
+    msg.style.color = 'var(--green)'; msg.style.display = 'block';
+  });
+
+  // Register
+  document.getElementById('btn-register').addEventListener('click', async () => {
+    const studioName = document.getElementById('reg-studio').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const errEl = document.getElementById('reg-error');
+    errEl.textContent = '';
+    if (!studioName || !email || !password) { errEl.textContent = '请填写所有字段'; return; }
+    if (password.length < 8) { errEl.textContent = '密码至少 8 位'; return; }
+    const btn = document.getElementById('btn-register');
+    btn.disabled = true; btn.textContent = '注册中...';
+
+    const { data: authData, error: authErr } = await supabase.auth.signUp({ email, password });
+    if (authErr) { errEl.textContent = authErr.message; btn.disabled = false; btn.textContent = '注 册'; return; }
+    if (!authData.user) { errEl.textContent = '注册失败，请重试'; btn.disabled = false; btn.textContent = '注 册'; return; }
+
+    // Create studio
+    const { data: studio, error: studioErr } = await supabase.from('studios').insert({
+      name: studioName,
+      slug: `${studioName.toLowerCase().replace(/\s+/g,'-')}-${Date.now()}`,
+      brand_color: '#1A1A1A'
+    }).select().single();
+    if (studioErr) { errEl.textContent = '创建工作室失败: ' + studioErr.message; btn.disabled = false; btn.textContent = '注 册'; return; }
+
+    // Create profile
+    const { error: profileErr } = await supabase.from('profiles').insert({
+      id: authData.user.id, studio_id: studio.id,
+      role: 'designer', display_name: studioName
+    });
+    if (profileErr) { errEl.textContent = '创建用户档案失败: ' + profileErr.message; btn.disabled = false; btn.textContent = '注 册'; return; }
+
+    await checkSession();
+    btn.disabled = false; btn.textContent = '注 册';
+    showPage('dashboard'); loadDashboard();
+    toast('注册成功！欢迎使用 SiteSync');
+  });
+
+  // Enter key submit
+  document.getElementById('login-password').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('btn-login').click(); });
+  document.getElementById('reg-password').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('btn-register').click(); });
+}
+
+// ====== HEADER ======
+function renderHeader() {
+  if (!currentUser) return;
+  // Insert header if not exists
+  let header = document.querySelector('.app-header');
+  if (!header) {
+    header = document.createElement('div');
+    header.className = 'app-header';
+    header.innerHTML = `
+      <div class="logo">SiteSync</div>
+      <div class="header-actions">
+        <div class="dropdown" id="notif-dropdown">
+          <button class="notif-btn" id="btn-notif">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            <span id="notif-badge" class="notif-badge" style="display:none">0</span>
+          </button>
+          <div class="notif-dropdown" id="notif-drop"></div>
+        </div>
+        <div class="dropdown">
+          <div class="avatar" id="btn-user-menu">${getInitial(currentProfile?.display_name || '?')}</div>
+          <div class="dropdown-menu" id="user-menu">
+            <button onclick="showPage('dashboard');loadDashboard()">工作台</button>
+            <button onclick="doLogout()">退出登录</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.prepend(header);
+
+    // User menu toggle
+    document.getElementById('btn-user-menu').addEventListener('click', () => {
+      document.getElementById('user-menu').classList.toggle('open');
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.dropdown')) {
+        document.getElementById('user-menu').classList.remove('open');
+        document.getElementById('notif-drop').classList.remove('open');
+      }
+    });
+
+    // Notifications
+    document.getElementById('btn-notif').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const drop = document.getElementById('notif-drop');
+      drop.classList.toggle('open');
+      if (drop.classList.contains('open')) await loadNotifications();
+    });
+    loadNotificationCount();
+    setInterval(loadNotificationCount, 30000);
+  }
+
+  // Mobile nav
+  let mobileNav = document.querySelector('.mobile-nav');
+  if (!mobileNav) {
+    mobileNav = document.createElement('div');
+    mobileNav.className = 'mobile-nav';
+    mobileNav.innerHTML = `
+      <button id="mnav-dash" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>项目</button>
+      <button id="mnav-notif"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>通知</button>
+    `;
+    document.body.appendChild(mobileNav);
+    document.getElementById('mnav-dash').addEventListener('click', () => { showPage('dashboard'); loadDashboard(); });
+    document.getElementById('mnav-notif').addEventListener('click', () => { showPage('notifications'); });
+  }
+  updateMobileNav();
+}
+
+function updateMobileNav() {
+  const page = getHashPage();
+  document.querySelectorAll('.mobile-nav button').forEach(b => b.classList.remove('active'));
+  if (page === 'dashboard' || page.startsWith('project-')) {
+    document.getElementById('mnav-dash')?.classList.add('active');
+  }
+}
+
+async function loadNotificationCount() {
+  if (!currentUser) return;
+  const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id).eq('is_read', false);
+  const badge = document.getElementById('notif-badge');
+  if (count > 0) { badge.style.display = 'flex'; badge.textContent = count > 99 ? '99+' : count; }
+  else badge.style.display = 'none';
+}
+
+async function loadNotifications() {
+  const { data } = await supabase.from('notifications').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(10);
+  const drop = document.getElementById('notif-drop');
+  if (!data?.length) { drop.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2);font-size:14px">暂无通知</div>'; return; }
+  drop.innerHTML = data.map(n => `
+    <div class="notif-item ${n.is_read?'':'unread'}" onclick="markNotifRead('${n.id}','${n.link||''}')">
+      <div class="notif-title">${n.title}</div>
+      <div class="notif-time">${timeAgo(n.created_at)}</div>
+    </div>
+  `).join('');
+}
+
+window.markNotifRead = async function(id, link) {
+  await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+  document.getElementById('notif-drop').classList.remove('open');
+  loadNotificationCount();
+  if (link) window.location.hash = link;
+};
+
+window.doLogout = async function() {
+  await supabase.auth.signOut();
+  currentUser = null; currentProfile = null; currentStudio = null;
+  document.querySelector('.app-header')?.remove();
+  document.querySelector('.mobile-nav')?.remove();
+  showPage('login');
+};
+
+// ====== DASHBOARD ======
+async function loadDashboard() {
+  if (!currentUser) return;
+  const grid = document.getElementById('project-grid');
+  const empty = document.getElementById('dashboard-empty');
+  const createBtn = document.getElementById('btn-create-project');
+
+  // Show create button for designers
+  if (currentProfile?.role === 'designer') createBtn.style.display = '';
+  else createBtn.style.display = 'none';
+
+  // Get projects
+  const { data: memberships } = await supabase.from('project_members').select('project_id').eq('user_id', currentUser.id);
+  if (!memberships?.length) {
+    grid.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  const projectIds = memberships.map(m => m.project_id);
+
+  const { data: projects } = await supabase.from('projects').select('*').in('id', projectIds).order('updated_at', { ascending: false });
+
+  if (!projects?.length) { grid.innerHTML = ''; empty.style.display = ''; return; }
+
+  grid.innerHTML = projects.map(p => `
+    <div class="card proj-card" onclick="showPage('project-${p.id}');loadProject('${p.id}')">
+      ${p.cover_image_url
+        ? `<img class="proj-cover" src="${p.cover_image_url}?width=400&height=300&resize=cover" alt="">`
+        : `<div class="proj-cover" style="background:linear-gradient(135deg,${currentStudio?.brand_color||'#1A1A1A'},#555);display:flex;align-items:center;justify-content:center;font-size:36px;color:#FFF">🏗️</div>`}
+      <div class="proj-body">
+        <div class="proj-name">${p.name}</div>
+        <div class="proj-addr">📍 ${p.address}</div>
+        <div class="proj-meta">
+          <span class="badge badge-active">${p.current_phase}</span>
+          <span>${timeAgo(p.updated_at)}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Create Project
+document.getElementById('btn-create-project').addEventListener('click', openCreateProject);
+window.openCreateProject = openCreateProject;
+function openCreateProject() { openDialog('dlg-project'); }
+
+// Cover upload
+document.getElementById('cover-upload-zone').addEventListener('click', () => document.getElementById('cover-input').click());
+let coverFile = null;
+document.getElementById('cover-input').addEventListener('change', (e) => {
+  coverFile = e.target.files[0];
+  document.getElementById('cover-preview').innerHTML = coverFile
+    ? `<img src="${URL.createObjectURL(coverFile)}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px">`
+    : '';
+});
+
+document.getElementById('btn-submit-project').addEventListener('click', async () => {
+  const name = document.getElementById('proj-name').value.trim();
+  const address = document.getElementById('proj-addr').value.trim();
+  if (!name || !address) { toast('请填写项目名称和地址', 'error'); return; }
+  const btn = document.getElementById('btn-submit-project');
+  btn.disabled = true; btn.textContent = '创建中...';
+
+  let coverUrl = null;
+  if (coverFile) {
+    try { const r = await uploadImage(coverFile, 'project-covers'); coverUrl = r.url; }
+    catch (e) { toast('封面图上传失败', 'error'); }
+  }
+
+  const { data: project, error } = await supabase.from('projects').insert({
+    studio_id: currentStudio.id,
+    name, address,
+    cover_image_url: coverUrl,
+    area_sqm: document.getElementById('proj-area').value ? parseFloat(document.getElementById('proj-area').value) : null,
+    style: document.getElementById('proj-style').value.trim() || null,
+    start_date: document.getElementById('proj-start').value || null,
+    current_phase: '拆旧'
+  }).select().single();
+
+  if (error) { toast('创建失败: ' + error.message, 'error'); btn.disabled = false; btn.textContent = '创建'; return; }
+
+  // Add self as member
+  await supabase.from('project_members').insert({ project_id: project.id, user_id: currentUser.id, role: 'designer' });
+
+  btn.disabled = false; btn.textContent = '创建';
+  closeDialog('dlg-project');
+  // Reset form
+  document.getElementById('proj-name').value = '';
+  document.getElementById('proj-addr').value = '';
+  document.getElementById('proj-area').value = '';
+  document.getElementById('proj-style').value = '';
+  document.getElementById('proj-start').value = '';
+  document.getElementById('cover-preview').innerHTML = '';
+  coverFile = null;
+
+  loadDashboard();
+  showPage('project-' + project.id);
+  loadProject(project.id);
+  toast('项目创建成功！');
+});
+
+// ====== PROJECT TIMELINE ======
+async function loadProject(projectId) {
+  if (!currentUser || !projectId) return;
+  const { data: project } = await supabase.from('projects').select('*').eq('id', projectId).single();
+  if (!project) { toast('项目不存在', 'error'); return; }
+  currentProject = project;
+
+  // Check member
+  const { data: membership } = await supabase.from('project_members').select('*').eq('project_id', projectId).eq('user_id', currentUser.id).maybeSingle();
+  if (!membership && currentProfile?.role !== 'designer') { toast('你没有权限访问此项目', 'error'); showPage('dashboard'); loadDashboard(); return; }
+
+  const canPost = currentProfile?.role === 'designer' || currentProfile?.role === 'contractor';
+
+  // Header
+  document.getElementById('proj-header').innerHTML = `
+    <div class="back-row">
+      <button class="btn-icon" onclick="showPage('dashboard');loadDashboard()">←</button>
+      <h3>${project.name}</h3>
+    </div>
+    <div style="font-size:13px;color:var(--text2)">📍 ${project.address} · 状态: ${project.status}</div>
+  `;
+
+  // Phase bar
+  renderPhaseBar(project.current_phase);
+
+  // FAB
+  document.getElementById('fab-log').style.display = canPost ? '' : 'none';
+
+  // Load logs
+  await loadLogs(projectId);
+}
+
+function renderPhaseBar(currentPhase) {
+  const idx = PHASES.indexOf(currentPhase);
+  document.getElementById('phase-bar').innerHTML = PHASES.map((p, i) => {
+    let cls = 'phase-dot';
+    if (i < idx) cls += ' done';
+    else if (i === idx) cls += ' current';
+    return `<div class="${cls}">
+      <div class="line" style="${i===PHASES.length-1?'display:none':''}"></div>
+      <div class="circle"></div>
+      <span>${p}</span>
+    </div>`;
+  }).join('');
+}
+
+async function loadLogs(projectId, cursor) {
+  let query = supabase.from('daily_logs').select('*, author:profiles!daily_logs_author_id_fkey(display_name,avatar_url,role)', { count: 'exact' })
+    .eq('project_id', projectId).order('publish_date', { ascending: false }).order('created_at', { ascending: false }).limit(20);
+
+  if (cursor) query = query.lt('publish_date', cursor);
+
+  const { data: logs, error } = await query;
+  if (error) { console.error(error); return; }
+
+  const timeline = document.getElementById('timeline');
+  const empty = document.getElementById('timeline-empty');
+
+  if (!cursor) timeline.innerHTML = ''; // Reset for first load
+  if (!logs?.length && !cursor) { empty.style.display = ''; return; }
+  empty.style.display = 'none';
+
+  logs.forEach(log => renderLogCard(log, cursor ? 'append' : 'prepend'));
+
+  // Infinite scroll sentinel
+  if (logs.length === 20) {
+    let sentinel = document.getElementById('log-sentinel');
+    if (!sentinel) {
+      sentinel = document.createElement('div');
+      sentinel.id = 'log-sentinel';
+      sentinel.style.height = '1px';
+      timeline.after(sentinel);
+      const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) {
+          const lastLog = logs[logs.length - 1];
+          loadLogs(projectId, lastLog.publish_date);
+        }
+      }, { rootMargin: '200px' });
+      observer.observe(sentinel);
+    }
+  }
+
+  // Build month nav
+  buildMonthNav(projectId);
+}
+
+async function buildMonthNav(projectId) {
+  const { data } = await supabase.from('daily_logs').select('publish_date').eq('project_id', projectId).order('publish_date', { ascending: false });
+  if (!data?.length) return;
+  const months = [...new Set(data.map(d => d.publish_date?.slice(0,7)))];
+  const nav = document.getElementById('month-nav');
+  nav.style.display = window.innerWidth >= 768 ? 'flex' : 'none';
+  nav.innerHTML = months.map(m => {
+    const [y, mo] = m.split('-');
+    return `<button class="btn btn-sm btn-outline" style="white-space:nowrap" onclick="scrollToMonth('${m}')">${y}年${mo}月</button>`;
+  }).join('');
+}
+
+window.scrollToMonth = async function(month) {
+  const { data } = await supabase.from('daily_logs').select('*').eq('project_id', currentProject.id).gte('publish_date', month+'-01').lt('publish_date', month+'-32').order('publish_date',{ascending:false});
+  document.getElementById('timeline').innerHTML = '';
+  if (data) data.forEach(log => renderLogCard(log, 'prepend'));
+};
+
+function renderLogCard(log, mode) {
+  const author = log.author;
+  const displayName = author?.display_name || '未知';
+  const imgCount = (log.images || []).length;
+  let gridCols = '1fr';
+  if (imgCount === 2) gridCols = '1fr 1fr';
+  else if (imgCount === 3) gridCols = '2fr 1fr 1fr';
+  else if (imgCount >= 4) gridCols = '1fr 1fr';
+
+  // Only render first 4 images in grid
+  const displayImages = (log.images || []).slice(0, 4);
+
+  let imageGridHTML = '';
+  if (displayImages.length > 0) {
+    imageGridHTML = `<div class="log-images" style="grid-template-columns:${gridCols}">
+      ${displayImages.map((img, i) => {
+        let style = '';
+        if (imgCount === 3 && i === 0) style = 'grid-row:span 2';
+        return `<img src="${img.url}?width=800" alt="" loading="lazy"
+          onclick="openPhotoViewer(${JSON.stringify(log.images).replace(/"/g,'&quot;')}, ${i})"
+          style="${style};aspect-ratio:${imgCount===1?'16/9':'1'}">`;
+      }).join('')}
+    </div>`;
+  }
+
+  const card = document.createElement('div');
+  card.className = 'card log-card';
+  card.id = 'log-' + log.id;
+  card.innerHTML = `
+    <div class="log-date-row">
+      <span class="log-date">${formatDate(log.publish_date)}</span>
+      <span class="log-phase-chip">${log.phase}</span>
+    </div>
+    ${imageGridHTML}
+    ${log.content ? `<div class="log-content">${log.content}</div>` : ''}
+    <div class="log-footer">
+      <div class="log-author">
+        <div class="comment-avatar">${getInitial(displayName)}</div>
+        <span>${displayName}</span>
+        <span style="margin-left:4px">· ${timeAgo(log.created_at)}</span>
+      </div>
+      <div class="log-actions">
+        <button class="btn-icon btn-sm" onclick="toggleComments('${log.id}')">💬 <span id="comment-count-${log.id}" style="font-size:12px">0</span></button>
+        ${(currentUser?.id === log.author_id || currentProfile?.role === 'designer') ? `
+          <button class="btn-icon btn-sm" onclick="editLog('${log.id}')">✏️</button>
+          <button class="btn-icon btn-sm" onclick="deleteLog('${log.id}')" style="color:var(--red)">🗑</button>
+        ` : ''}
+      </div>
+    </div>
+    <div class="comments-section" id="comments-${log.id}">
+      <div id="comment-list-${log.id}"></div>
+      <div class="comment-input-row">
+        <input id="comment-input-${log.id}" type="text" class="input" placeholder="写评论..." style="font-size:13px">
+        <button class="btn btn-primary btn-sm" onclick="postComment('${log.id}')">发送</button>
+      </div>
+    </div>
+  `;
+
+  const timeline = document.getElementById('timeline');
+  if (mode === 'prepend') timeline.appendChild(card);
+  else timeline.prepend(card);
+
+  // Load comment count
+  loadCommentCount(log.id);
+}
+
+// ====== LOG EDITOR ======
+window.editLog = async function(logId) {
+  const { data: log } = await supabase.from('daily_logs').select('*').eq('id', logId).single();
+  if (!log) return;
+  editingLogId = logId;
+  document.getElementById('dlg-log-title').textContent = '编辑施工日志';
+  selectedPhase = log.phase;
+  logImages = log.images || [];
+  document.getElementById('log-content').value = log.content || '';
+  renderPhaseChips();
+  renderLogImgPreview();
+  openDialog('dlg-log');
+};
+
+let selectedPhase = '拆旧';
+
+function renderPhaseChips() {
+  document.getElementById('phase-chips').innerHTML = PHASES.map(p =>
+    `<button class="btn btn-sm ${selectedPhase===p?'btn-primary':'btn-outline'}" onclick="selectPhase('${p}')">${p}</button>`
+  ).join('');
+}
+window.selectPhase = function(p) { selectedPhase = p; renderPhaseChips(); };
+
+// Log image upload
+document.getElementById('log-upload-zone').addEventListener('click', () => document.getElementById('log-img-input').click());
+document.getElementById('log-img-input').addEventListener('change', async function() {
+  const files = Array.from(this.files);
+  for (const file of files) {
+    try {
+      const { url, width, height } = await uploadImage(file, 'log-images');
+      logImages.push({ url, width, height, order: logImages.length });
+      renderLogImgPreview();
+    } catch(e) { toast('上传失败', 'error'); }
+  }
+  this.value = '';
+});
+
+function renderLogImgPreview() {
+  document.getElementById('log-img-preview').innerHTML = logImages.map((img, i) => `
+    <div class="img-preview-item">
+      <img src="${img.url}?width=200" alt="">
+      <button class="remove-btn" onclick="removeLogImg(${i})">×</button>
+    </div>
+  `).join('');
+}
+window.removeLogImg = function(i) { logImages.splice(i,1); renderLogImgPreview(); };
+
+// Submit log
+document.getElementById('btn-submit-log').addEventListener('click', async () => {
+  if (!selectedPhase) { toast('请选择施工阶段', 'error'); return; }
+  const content = document.getElementById('log-content').value.trim();
+  const btn = document.getElementById('btn-submit-log');
+  btn.disabled = true; btn.textContent = '发布中...';
+
+  const payload = {
+    project_id: currentProject.id,
+    author_id: currentUser.id,
+    phase: selectedPhase,
+    content: content || null,
+    images: logImages,
+    publish_date: new Date().toISOString().slice(0,10)
+  };
+
+  let error;
+  if (editingLogId) {
+    ({ error } = await supabase.from('daily_logs').update(payload).eq('id', editingLogId));
+  } else {
+    ({ error } = await supabase.from('daily_logs').insert(payload));
+  }
+
+  if (error) { toast('保存失败: ' + error.message, 'error'); btn.disabled = false; btn.textContent = '发布'; return; }
+
+  // Update project phase
+  await supabase.from('projects').update({ current_phase: selectedPhase }).eq('id', currentProject.id);
+
+  // Notify other members
+  const { data: members } = await supabase.from('project_members').select('user_id').eq('project_id', currentProject.id).neq('user_id', currentUser.id);
+  if (members?.length) {
+    await supabase.from('notifications').insert(members.map(m => ({
+      user_id: m.user_id, type: 'log_published',
+      title: `${currentProfile?.display_name} 发布了新施工日志`,
+      body: `阶段: ${selectedPhase}${content ? ' — ' + content.slice(0,30) : ''}`,
+      link: `project-${currentProject.id}`
+    })));
+  }
+
+  editingLogId = null;
+  logImages = [];
+  selectedPhase = '拆旧';
+  document.getElementById('log-content').value = '';
+  document.getElementById('log-img-preview').innerHTML = '';
+  document.getElementById('dlg-log-title').textContent = '发布施工日志';
+  btn.disabled = false; btn.textContent = '发布';
+  closeDialog('dlg-log');
+  loadProject(currentProject.id);
+  toast(editingLogId ? '日志已更新' : '日志发布成功！');
+});
+
+// FAB
+document.getElementById('fab-log').addEventListener('click', () => {
+  editingLogId = null;
+  logImages = [];
+  selectedPhase = '拆旧';
+  document.getElementById('log-content').value = '';
+  document.getElementById('log-img-preview').innerHTML = '';
+  document.getElementById('dlg-log-title').textContent = '发布施工日志';
+  renderPhaseChips();
+  openDialog('dlg-log');
+});
+
+// Delete log
+window.deleteLog = function(logId) {
+  openConfirm('确定要删除这条日志吗？此操作不可撤销。', async () => {
+    const { error } = await supabase.from('daily_logs').delete().eq('id', logId);
+    if (error) { toast('删除失败', 'error'); return; }
+    document.getElementById('log-' + logId)?.remove();
+    toast('日志已删除');
+    if (!document.getElementById('timeline').children.length) {
+      document.getElementById('timeline-empty').style.display = '';
+    }
+  });
+};
+
+// ====== COMMENTS ======
+async function loadCommentCount(logId) {
+  const { count } = await supabase.from('comments').select('*', { count: 'exact', head: true }).eq('log_id', logId);
+  const el = document.getElementById('comment-count-' + logId);
+  if (el) el.textContent = count || 0;
+}
+
+window.toggleComments = async function(logId) {
+  const section = document.getElementById('comments-' + logId);
+  const isOpen = section.classList.contains('open');
+  if (isOpen) { section.classList.remove('open'); return; }
+  section.classList.add('open');
+
+  // Load comments
+  const { data: comments } = await supabase.from('comments').select('*, author:profiles!comments_author_id_fkey(display_name,role,avatar_url)').eq('log_id', logId).order('created_at', { ascending: true });
+  const list = document.getElementById('comment-list-' + logId);
+  if (!comments?.length) {
+    list.innerHTML = '<div style="padding:12px 0;text-align:center;color:var(--text2);font-size:13px">暂无评论，说点什么吧</div>';
+  } else {
+    list.innerHTML = comments.map(c => `
+      <div class="comment-item ${c.author?.role==='designer'?'designer':''}">
+        <div class="comment-avatar">${getInitial(c.author?.display_name||'?')}</div>
+        <div class="comment-body">
+          <div class="comment-author">${c.author?.display_name||'未知'}<span class="comment-time">${timeAgo(c.created_at)}</span></div>
+          <div class="comment-text">${c.content}</div>
+        </div>
+        ${(currentUser?.id===c.author_id||currentProfile?.role==='designer') ? `<button class="btn-icon btn-sm" onclick="deleteComment('${c.id}','${logId}')" style="color:var(--red);flex-shrink:0">🗑</button>` : ''}
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('comment-input-' + logId)?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') postComment(logId);
+  });
+};
+
+window.postComment = async function(logId) {
+  const input = document.getElementById('comment-input-' + logId);
+  const content = input.value.trim();
+  if (!content) return;
+  const { error } = await supabase.from('comments').insert({ log_id: logId, author_id: currentUser.id, content });
+  if (error) { toast('评论失败', 'error'); return; }
+  input.value = '';
+
+  // Notify log author
+  const { data: log } = await supabase.from('daily_logs').select('author_id').eq('id', logId).single();
+  if (log && log.author_id !== currentUser.id) {
+    await supabase.from('notifications').insert({
+      user_id: log.author_id, type: 'comment_added',
+      title: `${currentProfile?.display_name} 评论了你的日志`,
+      body: content.slice(0, 50),
+      link: `project-${currentProject.id}`
+    });
+  }
+
+  toggleComments(logId); // close
+  setTimeout(() => toggleComments(logId), 100); // reopen to refresh
+  loadCommentCount(logId);
+};
+
+window.deleteComment = async function(commentId, logId) {
+  await supabase.from('comments').delete().eq('id', commentId);
+  toggleComments(logId); setTimeout(() => toggleComments(logId), 100);
+  loadCommentCount(logId);
+};
+
+// ====== PHOTO VIEWER ======
+window.openPhotoViewer = function(images, index) {
+  photoImages = images;
+  photoIndex = index;
+  updatePhotoViewer();
+  document.getElementById('photo-viewer').classList.add('open');
+};
+function updatePhotoViewer() {
+  const img = photoImages[photoIndex];
+  document.getElementById('photo-img').src = img.url;
+  document.getElementById('photo-info').textContent = `${photoIndex+1} / ${photoImages.length}`;
+}
+window.photoPrev = function() { if (photoIndex > 0) { photoIndex--; updatePhotoViewer(); } };
+window.photoNext = function() { if (photoIndex < photoImages.length - 1) { photoIndex++; updatePhotoViewer(); } };
+window.closePhotoViewer = function() { document.getElementById('photo-viewer').classList.remove('open'); };
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('photo-viewer').classList.contains('open')) return;
+  if (e.key === 'Escape') closePhotoViewer();
+  if (e.key === 'ArrowLeft') photoPrev();
+  if (e.key === 'ArrowRight') photoNext();
+});
+
+// ====== INIT ======
+async function init() {
+  setupAuthUI();
+  renderPhaseChips();
+
+  // Check existing session
+  const user = await checkSession();
+
+  const hash = getHashPage();
+  if (user) {
+    renderHeader();
+    if (['login','register',''].includes(hash)) {
+      showPage('dashboard');
+      loadDashboard();
+    } else {
+      showPage(hash);
+      if (hash === 'dashboard') loadDashboard();
+      if (hash.startsWith('project-')) loadProject(hash.replace('project-',''));
+    }
+  } else {
+    if (!['login','register'].includes(hash)) showPage('login');
+    else showPage(hash);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
