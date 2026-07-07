@@ -429,6 +429,11 @@ function toast(msg, type='success') {
 function openDialog(id) { document.getElementById(id).classList.add('open'); }
 function closeDialog(id) { document.getElementById(id).classList.remove('open'); }
 
+// Expose to global scope for inline onclick handlers (module scripts are scoped)
+window.showPage = showPage;
+window.openDialog = openDialog;
+window.closeDialog = closeDialog;
+
 function openConfirm(msg, cb) {
   document.getElementById('confirm-msg').textContent = msg;
   confirmCallback = cb;
